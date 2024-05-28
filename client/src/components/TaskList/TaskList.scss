@@ -1,0 +1,62 @@
+.title {
+  color: orange;
+  font-weight: bolder;
+  font-style: italic;
+}
+.task {
+  display: flex;
+  align-items: center;
+  &:not(:last-child) {
+    margin-bottom: 1rem;
+  }
+}
+.taskCheckbox {
+  flex: 0 0 8%;
+  max-width: 10%;
+  height: 2rem;
+  margin-top: 0.5rem;
+  @media (prefers-color-scheme: dark) {
+    background-color: #fff
+  }
+  &:hover {
+    transition: all 0.5s;
+    cursor: pointer;
+  }
+}
+.taskName {
+  flex: 0 0 70%;
+  max-width: 70%;
+  color: #383f50;
+  font-size: 20px;
+  &.taskNameDone {
+    color: #b2b7bb;
+    text-decoration: line-through;
+  }
+}
+
+.taskActions {
+  flex: 0 0 28%;
+  max-width: 20%;
+  display: flex;
+  justify-content: space-between;
+}
+
+.taskBtn {
+  max-width: 3.5rem;
+  font-size: 30px;
+  border: none;
+  &:hover {
+    transition: all 0.5s;
+    cursor: pointer;
+  }
+}
+.edit {
+  background: linear-gradient(to right, #00b4db, #0083b0);
+  color: #fff;
+}
+
+/* Remove Button Styles */
+.remove {
+  background: linear-gradient(to right, #ff5e62, #ff9966);
+  color: #fff;
+}

@@ -1,0 +1,54 @@
+version: "3.9"
+services:
+  nginx:
+    container_name: my-nginx
+    depends_on:
+      - backend
+    restart: always
+    build:
+      context: ./client
+      dockerfile: Dockerfile
+    ports:
+      - 80:80
+    volumes:
+      - ./nginx/default.conf:/etc/nginx/conf.d/default.conf
+      # - ./nginx/.htpasswd:/etc/nginx/.htpasswd
+    networks:
+      - webapp
+
+  mysqldb:
+    image: bitnami/mysql:5.7
+    restart: unless-stopped
+    container_name: my-db
+    volumes:
+      - ./server/data/mysql:/var/lib/mysql
+      - ./server/init.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      MYSQL_ROOT_PASSWORD: root
+      MYSQL_DATABASE: todolist
+      MYSQL_USER: todolist
+      MYSQL_PASSWORD: abc@123
+    expose:
+      - "3306"
+    networks:
+      - webapp
+
+  backend:
+    depends_on:
+      - mysqldb
+    container_name: my-backend
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    expose:
+      - "8080"
+    environment:
+      - MYSQL_CONN_STRING=todolist:abc@123@tcp(mysqldb:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local
+    networks:
+      - webapp
+  
+networks:
+  webapp:
+
+# docker-compose -p todolist up -d
