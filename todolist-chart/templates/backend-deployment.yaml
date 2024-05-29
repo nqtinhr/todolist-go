@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: todolist-backend
+  template:
+    metadata:
+      labels:
+        app: todolist-backend
+    spec:
+      initContainers:
+        - name: init-mysql
+          image: busybox
+          command: ['sh', '-c', 'until nc -z myapp-mysql-primary 3306; do echo waiting for mysql; sleep 2; done;']
+      containers:
+      - name: todolist-backend
+        image: nguyentinh0310/todolist-backend:v1
+        imagePullPolicy: "Always"
+        resources: {}
+        ports:
+        - containerPort: 8080
+        env:
+        - name: MYSQL_CONN_STRING
+          value: "todolist:abc@123@tcp(myapp-mysql-primary:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local"
