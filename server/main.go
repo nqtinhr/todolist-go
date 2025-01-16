@@ -3,8 +3,9 @@ package main
 import (
 	"log"
 	"net/http"
-	"os"
 	"strconv"
+	"todololist/common"
+	"todololist/internal/model"
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
@@ -12,24 +13,9 @@ import (
 	"gorm.io/gorm"
 )
 
-type TodoList struct {
-	Id       int    `json:"id" gorm:"column:id;"`
-	Title    string `json:"title" gorm:"column:title;"`
-	Complete bool   `json:"complete" gorm:"column:complete;"`
-}
-
-func (TodoList) TableName() string { return "todos" }
-
-type TodoListUpdate struct {
-	Title    *string `json:"title" gorm:"column:title;"`
-	Complete *bool   `json:"complete" gorm:"column:complete;"`
-}
-
-func (TodoListUpdate) TableName() string { return TodoList{}.TableName() }
-
 func main() {
-	dsn := os.Getenv("MYSQL_CONN_STRING")
-	// dsn := "todolist:abc@123@tcp(127.0.0.1:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local"
+	// dsn := os.Getenv("MYSQL_CONN_STRING")
+	dsn := "todolist:abc@123@tcp(127.0.0.1:3306)/todolist?charset=utf8mb4&parseTime=True&loc=Local"
 	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
 
 	if err != nil {
@@ -53,136 +39,147 @@ func main() {
 		})
 	})
 
-	api := r.Group("api")
-	todos := api.Group("/todos")
+	v1 := r.Group("v1")
+	{
+		items := v1.Group("/items")
+		{
+			items.POST("/", CreateItem(db))
+			items.GET("/", ListItem(db))
+			items.GET("/:id", GetItem(db))
+			items.PATCH("/:id", UpdateItem(db))
+			items.DELETE("/:id", DeleteItem(db))
+		}
+	}
 
-	todos.POST("", func(c *gin.Context) {
-		var data TodoList
-		// ShouldBind là bind toàn bộ req
+}
+
+func CreateItem(db *gorm.DB) func(*gin.Context) {
+	return func(c *gin.Context) {
+		var data model.TodoItemCreation
+
 		if err := c.ShouldBind(&data); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
-
 			return
 		}
 
-		db.Create(&data)
+		if err := db.Create(&data).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+		c.JSON(http.StatusOK, common.SimpleSuccessResponse(data))
+	}
+}
 
-		c.JSON(http.StatusOK, data)
-	})
-
-	todos.GET("/:id", func(c *gin.Context) {
+func GetItem(db *gorm.DB) func(*gin.Context) {
+	return func(c *gin.Context) {
+		var data model.TodoItem
 		id, err := strconv.Atoi(c.Param("id"))
-
 		if err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
-
 			return
 		}
 
-		var data TodoList
-
-		db.Where("id = ?", id).First(&data)
-
-		c.JSON(http.StatusOK, data)
-	})
-
-	todos.GET("", func(c *gin.Context) {
-		var data []TodoList
-
-		type Paging struct {
-			Page  int `json:"page" from:"page"`
-			Limit int `json:"limit" from:"limit"`
+		// Tìm kiếm dữ liệu theo id
+		if err := db.Where("id = ?", id).First(&data).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
 		}
 
-		var paging Paging
+		c.JSON(http.StatusOK, common.SimpleSuccessResponse(data))
+	}
+}
 
+func UpdateItem(db *gorm.DB) func(*gin.Context) {
+	return func(c *gin.Context) {
+		var data model.TodoItemUpdate
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Bind dữ liệu từ request body vào `data`
+		if err := c.ShouldBind(&data); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Cập nhật dữ liệu trong database
+		if err := db.Where("id = ?", id).Updates(&data).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, common.SimpleSuccessResponse(true))
+	}
+}
+
+func DeleteItem(db *gorm.DB) func(*gin.Context) {
+	return func(c *gin.Context) {
+		id, err := strconv.Atoi(c.Param("id"))
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		// Thực hiện soft delete bằng cách cập nhật trạng thái "Deleted"
+		if err := db.Table(model.TodoItem{}.TableName()).Where("id = ?", id).Updates(map[string]interface{}{
+			"status": "Deleted",
+		}).Error; err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"error": err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, common.SimpleSuccessResponse(true))
+	}
+}
+
+func ListItem(db *gorm.DB) func(*gin.Context) {
+	return func(c *gin.Context) {
+		var paging common.Paging
 		if err := c.ShouldBind(&paging); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
-
 			return
 		}
 
-		if paging.Page <= 0 {
-			paging.Page = 1
-		}
+		paging.Process()
 
-		if paging.Limit <= 0 {
-			paging.Limit = 20
-		}
-
-		db.Offset((paging.Page - 1) * paging.Limit).Order("id desc").Limit(paging.Limit).Find(&data)
-
-		c.JSON(http.StatusOK, data)
-	})
-
-	todos.PATCH("/:id", func(c *gin.Context) {
-		id, err := strconv.Atoi(c.Param("id"))
-
-		if err != nil {
+		var result []model.TodoItem
+		if err := db.Count(&paging.Total).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
 
-		var existingData TodoList
-
-		if err := db.Where("id = ?", id).First(&existingData).Error; err != nil {
-			c.JSON(http.StatusNotFound, gin.H{
-				"error": "Record not found",
-			})
-			return
-		}
-
-		var updateData TodoListUpdate
-
-		if err := c.ShouldBindJSON(&updateData); err != nil {
+		if err := db.Order("id desc").Offset((paging.Page - 1) * paging.Limit).Limit(paging.Limit).Find(&result).Error; err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"error": err.Error(),
 			})
 			return
 		}
 
-		if updateData.Title != nil {
-			existingData.Title = *updateData.Title
-		}
-		if updateData.Complete != nil {
-			existingData.Complete = *updateData.Complete
-		}
+		c.JSON(http.StatusOK, common.NewSuccessResponse(result, paging, nil))
 
-		if err := db.Save(&existingData).Error; err != nil {
-			c.JSON(http.StatusInternalServerError, gin.H{
-				"error": err.Error(),
-			})
-			return
-		}
-
-		c.JSON(http.StatusOK, existingData)
-	})
-
-	todos.DELETE("/:id", func(c *gin.Context) {
-		id, err := strconv.Atoi(c.Param("id"))
-
-		if err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"error": err.Error(),
-			})
-
-			return
-		}
-
-		db.Table(TodoList{}.TableName()).Where("id = ?", id).Delete(nil)
-
-		c.JSON(http.StatusOK, gin.H{
-			"data": 1,
-		})
-	})
-
-	r.Run()
+	}
 }

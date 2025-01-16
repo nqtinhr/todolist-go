@@ -17,7 +17,7 @@ services:
       - webapp
 
   mysqldb:
-    image: bitnami/mysql:5.7
+    image: mysql:8.2.0
     restart: unless-stopped
     container_name: my-db
     volumes:
@@ -28,8 +28,8 @@ services:
       MYSQL_DATABASE: todolist
       MYSQL_USER: todolist
       MYSQL_PASSWORD: abc@123
-    expose:
-      - "3306"
+    ports:
+      - "3306:3306"
     networks:
       - webapp
 
