@@ -1,0 +1,28 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend-deployment
+spec:
+  replicas: 2
+  selector:
+    matchLabels:
+      app: todolist-frontend
+  template:
+    metadata:
+      labels:
+        app: todolist-frontend
+    spec:
+      volumes:
+      - name: todolist-nginx-vol 
+      containers:
+      - name: todolist-frontend
+        image: nguyentinh0310/todolist-nginx:v1
+        imagePullPolicy: "Always"
+        resources:
+          requests:
+            memory: "256Mi"
+          limits:
+            memory: "512Mi"       
+        volumeMounts:
+        - name: todolist-nginx-vol
+          mountPath: "/nginx/default.conf"

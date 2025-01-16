@@ -1,0 +1,43 @@
+
+# Cấu hình cho MySQL
+mysql:
+  enabled: true
+  architecture: replication
+  auth:
+    rootPassword: root
+    database: todolist
+    username: todolist
+    password: abc@123
+  primary:
+    persistence:
+      enabled: true
+      storageClass: "kops-csi-1-21"
+      accessModes:
+        - ReadWriteOnce
+      size: 8Gi
+  secondary:
+    replicaCount: 2
+  metrics:
+    enabled: false
+
+# Cấu hình cho phpMyAdmin
+phpmyadmin:
+  enabled: true
+  db:
+    host: "myapp-mysql-primary"
+    port: 3306
+  service:
+    type: NodePort  
+  ingress:
+    enabled: false
+  resources:
+    limits:
+      cpu: 500m
+      memory: 512Mi
+    requests:
+      cpu: 100m
+      memory: 128Mi
+
+tags:
+  mysql: true
+  phpmyadmin: true
